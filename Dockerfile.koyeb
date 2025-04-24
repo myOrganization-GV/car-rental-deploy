@@ -1,5 +1,4 @@
-FROM linuxserver/docker-compose:amd64-v2-version-2.16.0-r1
-
+FROM koyeb/docker-compose
 WORKDIR /app
 COPY . /app
-CMD ["docker-compose", "up"]
+CMD ["docker-compose", "-f", "docker-compose.yaml", "up"]
