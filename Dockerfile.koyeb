@@ -1,0 +1,4 @@
+FROM docker/compose:2.16.0
+WORKDIR /app
+COPY . /app
+CMD ["docker-compose", "up"]

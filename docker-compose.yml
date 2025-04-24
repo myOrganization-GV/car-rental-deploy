@@ -1,0 +1,219 @@
+  services:
+    car-rental-config-server:
+      image: gukami98/car-rental-config-server
+      container_name: car-rental-config-server
+      ports:
+        - 8012:8012
+      environment:
+        - CONFIG_GIT_USERNAME=Guilherme-Vale-98
+        - CONFIG_GIT_PASSWORD=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
+      networks:
+        - car_rental_network
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8012/actuator/health"]
+        interval: 10s
+        timeout: 5s
+        retries: 10
+        start_period: 70s
+    eureka-server:
+      image: gukami98/car-rental-eureka-server
+      container_name: eureka-server
+      ports:
+        - 8010:8010
+      networks:
+        - car_rental_network
+      depends_on:
+        car-rental-config-server: 
+          condition: service_healthy
+    
+    car-rental-userService:
+      image: gukami98/car-rental-user-service
+      container_name: car-rental-user-service
+      environment:
+        - SPRING_CONFIG_IMPORT=configserver:http://car-rental-config-server:8012
+      networks:
+        - car_rental_network
+      depends_on:
+        car-rental-config-server:
+          condition: service_healthy
+      volumes:
+        - logs:/app/logs 
+    car-rental-inventoryService:
+      image: gukami98/car-rental-inventory-service
+      container_name: car-rental-inventory-service
+      ports:
+        - 8081:8081
+      environment:
+        - SPRING_CONFIG_IMPORT=configserver:http://car-rental-config-server:8012
+      networks:
+        - car_rental_network
+      depends_on:
+        car-rental-config-server: 
+          condition: service_healthy
+      volumes:
+        - logs:/app/logs 
+
+    car-rental-orchestrator:
+      image: gukami98/car-rental-orchestrator
+      container_name: car-rental-orchestrator
+      ports:
+        - 8083:8083
+      networks:
+        - car_rental_network
+      depends_on:
+        car-rental-config-server: 
+          condition: service_healthy
+      volumes:
+        - logs:/app/logs
+    car-rental-booking-service:
+      image: gukami98/car-rental-booking-service
+      container_name: car-rental-booking-service
+      ports:
+        - 8084:8084
+      networks:
+        - car_rental_network
+      depends_on:
+        car-rental-config-server: 
+          condition: service_healthy
+      volumes:
+        - logs:/app/logs  
+    
+    
+    car-rental-api-gateway:
+      image: gukami98/car-rental-api-gateway
+      container_name: car-rental-api-gateway
+      ports:
+        - 8080:8080
+      environment:
+        - SPRING_CONFIG_IMPORT=configserver:http://car-rental-config-server:8012
+      networks:
+        - car_rental_network
+      depends_on:
+        car-rental-config-server:
+          condition: service_healthy
+
+    mysql:
+      image: mysql:8.0
+      container_name: mysql
+      restart: always
+      environment:
+        MYSQL_ROOT_PASSWORD: qewipowqGu
+      volumes:
+        - mysql_data:/var/lib/mysql
+        - ./mysql-init:/docker-entrypoint-initdb.d
+      ports:
+        - 3307:3306
+      networks:
+        - car_rental_network
+    elasticsearch:
+      image: elasticsearch:8.17.3
+      container_name: elasticsearch
+      ports:
+        - 9200:9200
+        - 9300:9300
+      volumes:
+        - es_data:/usr/share/elasticsearch/data/
+        - ./ELK/elk-config/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      environment:
+        - discovery.type=single-node
+        - http.host=0.0.0.0
+        - transport.host=0.0.0.0
+        - xpack.security.enabled=true
+        - xpack.monitoring.templates.enabled=false
+        - cluster.name=elasticsearch
+        - bootstrap.memory_lock=true
+        - ELASTIC_PASSWORD=password
+      networks:
+        - car_rental_network
+
+    logstash:
+      image: logstash:8.17.3
+      container_name: logstash
+      ports:
+        - 5044:5044
+        - 9600:9600
+      volumes:
+        - ./ELK/elk-config/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+        - ./ELK/elk-config/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml
+        #- C:\Users\gui_s\Downloads\Projects Web\Fullstack Projects\Car rental\car-rental-inventoryService\car-rental-inventoryService.log:/logs/car-rental-inventoryService.log
+
+        #- C:\Users\gui_s\Downloads\Projects Web\Fullstack Projects\Car rental\car-rental-userService\car-rental-userService.log:/logs/car-rental-userService.log 
+        
+        - logs:/logs
+        - ls_data:/usr/share/logstash/data
+      networks:
+        - car_rental_network
+      depends_on:
+        - elasticsearch
+
+    kibana:
+      image: kibana:8.17.3
+      container_name: kibana
+      ports:
+        - 5601:5601
+      volumes:
+        - ./ELK/elk-config/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+        - kb_data:/usr/share/kibana/data
+      networks:
+        - car_rental_network
+      depends_on:
+        - elasticsearch
+        
+    zipkin:
+      image: openzipkin/zipkin
+      container_name: zipkin
+      ports:
+      - 9411:9411
+      networks:
+        - car_rental_network 
+
+    zookeeper:
+      image: confluentinc/cp-zookeeper:7.5.3
+      container_name: zookeeper
+      ports:
+        - "2181:2181"
+      environment:
+        ZOOKEEPER_CLIENT_PORT: 2181
+        ZOOKEEPER_TICK_TIME: 2000
+      networks:
+        - car_rental_network
+
+    kafka:
+      image: confluentinc/cp-kafka:7.5.3
+      container_name: kafka
+      ports:
+        - "9092:9092"
+        - "9101:9101" # For JMX monitoring (optional)
+      environment:
+        KAFKA_BROKER_ID: 1
+        KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+        KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,BROKER://localhost:9101
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,BROKER:PLAINTEXT
+        KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+        KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+        KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      depends_on:
+        - zookeeper
+      networks:
+        - car_rental_network
+    kafdrop:
+      image: obsidiandynamics/kafdrop:latest
+      container_name: kafdrop
+      ports:
+        - "9000:9000"
+      environment:
+        KAFKA_BROKERCONNECT: "kafka:9092"
+      networks:
+        - car_rental_network
+      depends_on:
+        - kafka
+  networks:
+    car_rental_network:
+      driver: bridge
+  volumes:
+    mysql_data:
+    es_data:
+    ls_data:
+    kb_data:
+    logs: 
