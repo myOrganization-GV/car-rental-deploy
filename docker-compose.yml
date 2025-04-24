@@ -52,31 +52,6 @@
           condition: service_healthy
       volumes:
         - logs:/app/logs 
-
-    car-rental-orchestrator:
-      image: gukami98/car-rental-orchestrator
-      container_name: car-rental-orchestrator
-      ports:
-        - 8083:8083
-      networks:
-        - car_rental_network
-      depends_on:
-        car-rental-config-server: 
-          condition: service_healthy
-      volumes:
-        - logs:/app/logs
-    car-rental-booking-service:
-      image: gukami98/car-rental-booking-service
-      container_name: car-rental-booking-service
-      ports:
-        - 8084:8084
-      networks:
-        - car_rental_network
-      depends_on:
-        car-rental-config-server: 
-          condition: service_healthy
-      volumes:
-        - logs:/app/logs  
     
     
     car-rental-api-gateway:
